@@ -1,13 +1,14 @@
-const animalEmojis = ['🦍','🐕','🐈','🐄','🐖','🐑','🐇','🐤'];
+
+const animalEmojis = ['🐄','🐑','🐔','🐇','🐖','🐐','🐝','🐒'];
 const animals = [];
 const purchaseCounts = {};
 const MAX_PURCHASE = 4;
 const SPEED = 80;
-
 let grassPoints = 0;
-let milkPoints = 0;
-let woolPoints = 0;
 let tick = 0;
+const itemCounts = {
+  '🥛': 0, '🧶': 0, '🥚': 0, '🥕': 0, '🍄': 0, '🧀': 0, '🍯': 0, '🍌': 0
+};
 
 // DOM references
 const shopButton = document.getElementById('shopButton');
@@ -16,8 +17,16 @@ const shopButtons = document.getElementById('shopButtons');
 const animalZone = document.getElementById('animalZone');
 const grassEl = document.getElementById('grassPoints');
 const rateEl = document.getElementById('grassRate');
-const milkEl = document.getElementById('milkPoints');
-const woolEl = document.getElementById('woolPoints');
+const itemEls = {
+  '🥛': document.getElementById('milkPoints'),
+  '🧶': document.getElementById('woolPoints'),
+  '🥚': document.getElementById('eggPoints'),
+  '🥕': document.getElementById('carrotPoints'),
+  '🍄': document.getElementById('trufflePoints'),
+  '🧀': document.getElementById('cheesePoints'),
+  '🍯': document.getElementById('honeyPoints'),
+  '🍌': document.getElementById('bananaPoints')
+};
 
 // Toggle shop visibility
 shopButton.addEventListener('click', () => {
@@ -46,10 +55,11 @@ function createShopButtons() {
 // UI updates
 function updateDisplay() {
   grassEl.textContent = grassPoints;
-  milkEl.textContent = milkPoints;
-  woolEl.textContent = woolPoints;
   updateButtons();
   updateGrassRate();
+  for (const icon in itemCounts) {
+    itemEls[icon].textContent = itemCounts[icon];
+  }
 }
 
 function updateButtons() {
@@ -62,13 +72,24 @@ function updateButtons() {
 }
 
 function updateGrassRate() {
-  let total = 1; // base rate
+  let total = 1;
   animals.forEach(el => {
     const lv = +el.dataset.level;
     if (lv >= 10) total += 2;
     else if (lv >= 5) total += 1;
   });
   rateEl.textContent = total;
+}
+
+// Resource pop effect
+function showResourcePop(icon, x, y) {
+  const el = document.createElement('div');
+  el.className = 'resourcePop';
+  el.textContent = icon;
+  el.style.left = `${x}px`;
+  el.style.top = `${y}px`;
+  animalZone.appendChild(el);
+  setTimeout(() => el.remove(), 1000);
 }
 
 // Animal creation
@@ -89,9 +110,12 @@ function createAnimal(emoji) {
 
   const tip = document.createElement('div');
   tip.className = 'animalTooltip';
-  let tipText = `Feed me! Cost: 1 grass | +0/sec grass`;
-  if (emoji === '🐄') tipText += ' | +0/sec 🥛';
-  if (emoji === '🐑') tipText += ' | +0/sec 🧶';
+  let tipText = `Feed me! Cost: 1 grass\n +0/sec grass`;
+  const itemMap = {
+    '🐄': '🥛', '🐑': '🧶', '🐔': '🥚', '🐇': '🥕',
+    '🐖': '🍄', '🐐': '🧀', '🐝': '🍯', '🐒': '🍌'
+  };
+  if (itemMap[emoji]) tipText += `\n +0/sec ${itemMap[emoji]}`;
   tip.textContent = tipText;
   el.appendChild(tip);
   el._tip = tip;
@@ -114,7 +138,6 @@ function createAnimal(emoji) {
     if (lv >= 10) return;
     const cost = lv + 1;
     if (grassPoints < cost) return;
-
     grassPoints -= cost;
     lv++;
     el.dataset.level = lv;
@@ -122,23 +145,14 @@ function createAnimal(emoji) {
     const scale = parseFloat(el.dataset.scale) * 1.1;
     el.dataset.scale = scale.toFixed(2);
 
-    if (el.dataset.emoji === '🐤' && lv >= 5) {
-      body.textContent = '🐓';
-      el.dataset.emoji = '🐓';
-    }
-
     const gRate = lv >= 10 ? 2 : lv >= 5 ? 1 : 0;
-    const emoji = el.dataset.emoji;
-    const isCow = emoji === '🐄';
-    const isSheep = emoji === '🐑';
-    const milkRate = isCow && lv >= 10 ? (1 / 5).toFixed(2) : 0;
-    const woolRate = isSheep && lv >= 10 ? (1 / 5).toFixed(2) : 0;
+    const item = itemMap[el.dataset.emoji];
 
     let tipText = lv >= 10
-      ? `Max lv | +${gRate}/sec grass`
-      : `Feed me! Cost: ${lv + 1} grass | +${gRate}/sec grass`;
-    if (isCow) tipText += ` | +${milkRate}/sec 🥛`;
-    if (isSheep) tipText += ` | +${woolRate}/sec 🧶`;
+      ? `Max lv\n +${gRate}/sec grass`
+      : `Feed me! Cost: ${lv + 1} grass\n +${gRate}/sec grass`;
+    if (item) tipText += `\n +${(1/5).toFixed(2)}/sec ${item}`;
+
     el._tip.textContent = tipText;
 
     const dir = el.dataset.direction;
@@ -160,11 +174,9 @@ function moveAnimal(el) {
   const dist = Math.hypot(newX - curX, newY - curY);
   const dur = dist / SPEED;
   const dir = newX > curX ? -1 : 1;
-
   el.dataset.direction = dir;
   el.querySelector('.animalBody').style.transform =
     `scaleX(${dir}) scale(${el.dataset.scale})`;
-
   el.style.transition = `left ${dur}s ease, top ${dur}s ease`;
   el.style.left = `${newX}px`;
   el.style.top = `${newY}px`;
@@ -192,9 +204,18 @@ setInterval(() => {
     animals.forEach(el => {
       const emoji = el.dataset.emoji;
       const lv = +el.dataset.level;
-      if (lv >= 10) {
-        if (emoji === '🐄') milkPoints++;
-        if (emoji === '🐑') woolPoints++;
+      const itemMap = {
+        '🐄': '🥛', '🐑': '🧶', '🐔': '🥚', '🐇': '🥕',
+        '🐖': '🍄', '🐐': '🧀', '🐝': '🍯', '🐒': '🍌'
+      };
+      const item = itemMap[emoji];
+      if (lv >= 10 && item) {
+        itemCounts[item]++;
+        const rect = el.getBoundingClientRect();
+        const zoneRect = animalZone.getBoundingClientRect();
+        const x = rect.left - zoneRect.left + rect.width / 2;
+        const y = rect.top - zoneRect.top;
+        showResourcePop(item, x, y);
       }
     });
   }
